@@ -21,7 +21,7 @@ export default function VitePluginAutoRoutes(options = {}) {
 
       fs.writeFileSync(
         path.resolve(config.root, routesFile),
-        routesFileContent,
+        routesFileContent, 
         "utf8",
       );
     },
