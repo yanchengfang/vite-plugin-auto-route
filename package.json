@@ -15,10 +15,11 @@
     "plugin"
   ],
   "author": "summery-laker",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.32.1",
   "files": [
     "dist",
+    "index.d.ts",
     "README.md"
   ],
   "devDependencies": {
