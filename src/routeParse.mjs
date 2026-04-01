@@ -1,5 +1,8 @@
 import path from "node:path";
 import fs from "node:fs";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 function toKebabCase(input) {
   return input
@@ -31,17 +34,30 @@ function resolveImportPath(viewsRootDir, vueFileAbsPath) {
 
 // 读取同目录下的 .meta.js 文件，返回元数据对象
 function loadRouteMeta(vueFilePath) {
-  const metaFilePath = vueFilePath.replace(/\.vue$/i, '.meta.js');
-  if (fs.existsSync(metaFilePath)) {
-    try {
-      // 使用 import() 动态加载，避免 CommonJS require 在 ESM 项目中的问题
-      return require(metaFilePath); // 兼容当前插件运行环境
-    } catch (e) {
-      console.warn(`[vite-plugin-auto-route] 加载元数据失败: ${metaFilePath}`, e.message);
-      return {};
-    }
+  const metaFilePath = vueFilePath.replace(/\.vue$/i, ".meta.js");
+  if (!fs.existsSync(metaFilePath)) {
+    return {};
   }
-  return {};
+
+  try {
+    // 清除 require 缓存，确保每次修改 .meta.js 都能读取最新内容
+    const resolved = require.resolve(metaFilePath);
+    if (require.cache[resolved]) {
+      delete require.cache[resolved];
+    }
+
+    console.log(`🧩 正在加载元数据: ${metaFilePath}`);
+    const metaModule = require(metaFilePath);
+    const meta = metaModule.default || metaModule || {};
+    console.log(`✅ 元数据加载成功:`, meta);
+    return meta;
+  } catch (e) {
+    console.warn(
+      `[vite-plugin-auto-route] 加载元数据失败: ${metaFilePath}`,
+      e.message,
+    );
+    return {};
+  }
 }
 
 function defaultChildSegmentForDir(dirName) {
