@@ -35,25 +35,46 @@ function serializeRoutes(routes) {
 export default function VitePluginAutoRoutes(options = {}) {
   const {
     pagesDir = "src/views",
-    routesFile = "src/router/autoRoutes.js",
+    routesFile = "src/router/autoRoutes.ts",
     useNew = true,
   } = options;
 
+  // 生成路由文件（供外部调用）
+  function generateRoutesFile(root: string) {
+    const pagesPath = path.resolve(root, pagesDir);
+    const routes = useNew
+      ? generateRoutesNew(pagesPath, pagesPath)
+      : generateRoutesOld(pagesPath, pagesPath);
+
+    const routesFileContent = `// 本文件由 vite-plugin-auto-route 自动生成，请勿手动修改
+export const routes = ${serializeRoutes(routes)};\n`;
+
+    const targetPath = path.resolve(root, routesFile);
+    fs.writeFileSync(targetPath, routesFileContent, "utf8");
+    console.log(`[vite-plugin-auto-route] 路由文件已生成 → ${routesFile}`);
+  }
+
   return {
     name: "vite-plugin-auto-route",
-    handleHotUpdate(config) {
-      const pagesPath = path.resolve(config.root, pagesDir);
-      const routes = useNew
-        ? generateRoutesNew(pagesPath, pagesPath)
-        : generateRoutesOld(pagesPath, pagesPath);
 
-      const routesFileContent = `export const routes = ${serializeRoutes(routes)};\n`;
+    // 开发服务器启动时生成路由
+    configureServer(server) {
+      generateRoutesFile(server.config.root);
+    },
 
-      fs.writeFileSync(
-        path.resolve(config.root, routesFile),
-        routesFileContent,
-        "utf8",
-      );
+    // 构建时也生成一次路由
+    buildStart() {
+      generateRoutesFile(process.cwd());
+    },
+
+    // 文件变化时热更新路由
+    handleHotUpdate({ file, server }) {
+      if (file.includes(pagesDir) && (file.endsWith('.vue') || file.endsWith('.meta.js'))) {
+        console.log(`[vite-plugin-auto-route] 检测到视图文件变化: ${file}`);
+        generateRoutesFile(server.config.root);
+        // 触发页面刷新
+        server.ws.send({ type: 'full-reload' });
+      }
     },
   };
 }
