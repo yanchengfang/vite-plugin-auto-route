@@ -29,6 +29,21 @@ function resolveImportPath(viewsRootDir, vueFileAbsPath) {
   return `/src/views/${rel}`;
 }
 
+// 读取同目录下的 .meta.js 文件，返回元数据对象
+function loadRouteMeta(vueFilePath) {
+  const metaFilePath = vueFilePath.replace(/\.vue$/i, '.meta.js');
+  if (fs.existsSync(metaFilePath)) {
+    try {
+      // 使用 import() 动态加载，避免 CommonJS require 在 ESM 项目中的问题
+      return require(metaFilePath); // 兼容当前插件运行环境
+    } catch (e) {
+      console.warn(`[vite-plugin-auto-route] 加载元数据失败: ${metaFilePath}`, e.message);
+      return {};
+    }
+  }
+  return {};
+}
+
 function defaultChildSegmentForDir(dirName) {
   return normalizeSegment(`${dirName}view`);
 }
@@ -65,6 +80,7 @@ function walkViewsDir(currentDir, viewsRootDir, dirName, isTopLevel) {
       path: isDefault ? "" : pageSegment,
       name: `${dirName}${baseName}`,
       component: importPath,
+      ...loadRouteMeta(componentAbs),
     });
   }
 
@@ -85,6 +101,8 @@ function walkViewsDir(currentDir, viewsRootDir, dirName, isTopLevel) {
     const layoutAbs = path.resolve(currentDir, layoutFile);
     const importPath = resolveImportPath(viewsRootDir, layoutAbs);
     route.component = importPath;
+    // 布局文件也支持元数据
+    Object.assign(route, loadRouteMeta(layoutAbs));
   }
 
   return [route];
@@ -119,6 +137,7 @@ export function generateRoutesNew(viewsDir, basePath) {
         path: "/",
         name: "Home",
         component: importPath,
+        ...loadRouteMeta(fullPath),
       });
       continue;
     }
@@ -127,6 +146,7 @@ export function generateRoutesNew(viewsDir, basePath) {
       path: `/${segment}`,
       name: baseName,
       component: importPath,
+      ...loadRouteMeta(fullPath),
     });
   }
 
@@ -147,6 +167,7 @@ export function generateRoutesOld(dir, basePath) {
         .replace(/\.vue$/i, "")
         .replace(/\/index$/i, "")
         .replace(/\/_/g, "/:");
+      const importPath = `/src/views/${relativePath.replace(/\\/g, "/")}`;
 
       const parts = routePath.split("/").filter(Boolean);
       if (
@@ -162,7 +183,7 @@ export function generateRoutesOld(dir, basePath) {
       return [
         {
           path: finalPath,
-          component: fullPath,
+          component: importPath,
           ...meta,
         },
       ];
